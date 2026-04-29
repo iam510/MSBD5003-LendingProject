@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-团队协作数据库连接测试工具
+团队协作数据库连接测试工具,
 
 此脚本用于验证团队成员是否能成功连接到AnalyticDB MySQL数据库
 使用前请确保已正确配置 config/database_config.py 文件
