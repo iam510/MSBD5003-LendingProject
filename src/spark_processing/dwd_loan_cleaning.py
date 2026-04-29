@@ -20,6 +20,7 @@ import sys, os, time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config.database_config import SPARK_CONFIG
 
+import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, IntegerType
@@ -31,6 +32,7 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 RAW_DIR  = os.path.join(ROOT_DIR, "data", "raw")
 DWD_DIR  = os.path.join(ROOT_DIR, "data", "dwd")
 os.makedirs(DWD_DIR, exist_ok=True)
+hadoop_home = os.environ.get("hadoop.home.dir") or os.environ.get("HADOOP_HOME")
 
 REJECTED_CSV = os.path.join(RAW_DIR, "rejected_2007_to_2018Q4.csv")
 ACCEPTED_CSV = os.path.join(RAW_DIR, "accepted_2007_to_2018Q4.csv")
@@ -41,9 +43,18 @@ ACCEPTED_CSV = os.path.join(RAW_DIR, "accepted_2007_to_2018Q4.csv")
 spark = (
     SparkSession.builder
     .appName("DWD_LoanCleaning")
-    .master(SPARK_CONFIG.get("master", "local[*]"))
-    .config("spark.driver.memory", SPARK_CONFIG.get("driver_memory", "4g"))
-    .config("spark.executor.memory", SPARK_CONFIG.get("executor_memory", "4g"))
+    # .master(SPARK_CONFIG.get("master", "local[*]"))
+    # .config("spark.driver.memory", SPARK_CONFIG.get("driver_memory", "4g"))
+    # .config("spark.executor.memory", SPARK_CONFIG.get("executor_memory", "4g"))
+    .master("local[1]")
+    .config("spark.local.ip", "127.0.0.1")
+    .config("spark.driver.host", "127.0.0.1")
+    .config("spark.driver.bindAddress", "127.0.0.1")
+    .config("spark.pyspark.python", sys.executable)
+    .config("spark.pyspark.driver.python", sys.executable)
+    .config("spark.python.worker.reuse", "false")
+    .config("spark.driver.extraJavaOptions", f"-Dhadoop.home.dir={hadoop_home}")
+    .config("spark.executor.extraJavaOptions", f"-Dhadoop.home.dir={hadoop_home}")
     .getOrCreate()
 )
 spark.sparkContext.setLogLevel("WARN")
