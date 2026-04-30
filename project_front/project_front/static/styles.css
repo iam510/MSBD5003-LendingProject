@@ -121,9 +121,22 @@ button {
   font-weight: 750;
 }
 
+button.secondary {
+  border: 1px solid #c9d3ce;
+  background: #eef3ef;
+  color: #1f4234;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-self: end;
 }
 
 .result-panel {
@@ -141,6 +154,19 @@ button:disabled {
   margin: 12px 0 20px;
   color: #5d6c66;
   line-height: 1.5;
+}
+
+#lookup-summary {
+  min-height: 48px;
+  margin: 12px 0 18px;
+  color: #5d6c66;
+  line-height: 1.5;
+}
+
+.result-separator {
+  height: 1px;
+  margin: 24px 0;
+  background: #e6ece8;
 }
 
 .meter {
@@ -172,6 +198,10 @@ dl {
   margin: 22px 0 0;
 }
 
+.lookup-metrics {
+  margin-top: 0;
+}
+
 dl div {
   display: flex;
   justify-content: space-between;
@@ -197,6 +227,10 @@ dd {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
     grid-template-columns: 1fr;
   }
 

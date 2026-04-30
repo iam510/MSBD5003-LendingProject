@@ -35,6 +35,11 @@
           </label>
 
           <label>
+            邮编前 3 位
+            <input name="zip_code" type="text" inputmode="numeric" maxlength="3" minlength="3" pattern="[0-9]{3}" value="941" required>
+          </label>
+
+          <label>
             贷款金额
             <input name="loan_amnt" type="number" min="0" step="100" value="10000" required>
           </label>
@@ -74,12 +79,43 @@
             <input name="zip_approval_rate" type="number" min="0" max="1" step="0.0001" value="0.64" required>
           </label>
 
-          <button type="submit">开始分类</button>
+          <div class="actions">
+            <button type="button" id="lookup-button" class="secondary">获取聚合特征</button>
+            <button type="submit">开始分类</button>
+          </div>
         </form>
       </section>
 
       <aside class="result-panel">
         <div class="result-card">
+          <p class="eyebrow">DWS Lookup</p>
+          <h2 id="lookup-label">等待查询</h2>
+          <p id="lookup-summary">点击“获取聚合特征”后，会从 AnalyticDB 的 dws_geo_lookup、dws_purpose_lookup 和 dws_zip_lookup 读取聚合指标并自动回填表单。</p>
+          <dl class="lookup-metrics">
+            <div>
+              <dt>州通过率</dt>
+              <dd id="state-approval-rate">-</dd>
+            </div>
+            <div>
+              <dt>州平均 DTI</dt>
+              <dd id="state-avg-dti">-</dd>
+            </div>
+            <div>
+              <dt>用途通过率</dt>
+              <dd id="purpose-approval-rate">-</dd>
+            </div>
+            <div>
+              <dt>用途平均贷款额</dt>
+              <dd id="purpose-avg-loan-amnt">-</dd>
+            </div>
+            <div>
+              <dt>邮编通过率</dt>
+              <dd id="zip-approval-rate">-</dd>
+            </div>
+          </dl>
+
+          <div class="result-separator"></div>
+
           <p class="eyebrow">Prediction</p>
           <h2 id="result-label">等待输入</h2>
           <p id="result-summary">提交表单后会显示模型分类结果。</p>
@@ -103,6 +139,14 @@
 
     <script>
       const form = document.querySelector("#predict-form");
+      const lookupButton = document.querySelector("#lookup-button");
+      const lookupLabel = document.querySelector("#lookup-label");
+      const lookupSummary = document.querySelector("#lookup-summary");
+      const stateApprovalRate = document.querySelector("#state-approval-rate");
+      const stateAvgDti = document.querySelector("#state-avg-dti");
+      const purposeApprovalRate = document.querySelector("#purpose-approval-rate");
+      const purposeAvgLoanAmnt = document.querySelector("#purpose-avg-loan-amnt");
+      const zipApprovalRate = document.querySelector("#zip-approval-rate");
       const resultLabel = document.querySelector("#result-label");
       const resultSummary = document.querySelector("#result-summary");
       const negativeProb = document.querySelector("#negative-prob");
@@ -110,19 +154,78 @@
       const negativeBar = document.querySelector("#negative-bar");
       const positiveBar = document.querySelector("#positive-bar");
 
-      function setLoading(isLoading) {
-        const button = form.querySelector("button");
+      function setLoading(button, isLoading, loadingText, defaultText) {
         button.disabled = isLoading;
-        button.textContent = isLoading ? "分类中..." : "开始分类";
+        button.textContent = isLoading ? loadingText : defaultText;
       }
 
       function percent(value) {
         return `${(value * 100).toFixed(2)}%`;
       }
 
+      function formatMetric(value, isPercent = false) {
+        if (value === null || value === undefined) {
+          return "-";
+        }
+        if (isPercent) {
+          return percent(value);
+        }
+        return Number(value).toLocaleString(undefined, {
+          maximumFractionDigits: 2,
+        });
+      }
+
+      function applyLookupMetrics(data) {
+        const metrics = data.metrics || {};
+        const input = data.input || {};
+
+        form.elements.state_approval_rate.value = metrics.state_approval_rate;
+        form.elements.state_avg_dti.value = metrics.state_avg_dti;
+        form.elements.purpose_approval_rate.value = metrics.purpose_approval_rate;
+        form.elements.purpose_avg_loan_amnt.value = metrics.purpose_avg_loan_amnt;
+        form.elements.zip_approval_rate.value = metrics.zip_approval_rate;
+
+        stateApprovalRate.textContent = formatMetric(metrics.state_approval_rate, true);
+        stateAvgDti.textContent = formatMetric(metrics.state_avg_dti);
+        purposeApprovalRate.textContent = formatMetric(metrics.purpose_approval_rate, true);
+        purposeAvgLoanAmnt.textContent = formatMetric(metrics.purpose_avg_loan_amnt);
+        zipApprovalRate.textContent = formatMetric(metrics.zip_approval_rate, true);
+
+        lookupLabel.textContent = "查询完成";
+        lookupSummary.textContent = `已使用州 ${input.addr_state}、用途 ${input.purpose} 和邮编前缀 ${input.zip_code} 回填聚合特征。`;
+      }
+
+      lookupButton.addEventListener("click", async () => {
+        setLoading(lookupButton, true, "查询中...", "获取聚合特征");
+        lookupLabel.textContent = "查询中";
+        lookupSummary.textContent = "正在从 AnalyticDB 读取 DWS 聚合指标。";
+
+        const payload = Object.fromEntries(new FormData(form).entries());
+
+        try {
+          const response = await fetch("/api/lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "聚合特征获取失败");
+          }
+
+          applyLookupMetrics(data);
+        } catch (error) {
+          lookupLabel.textContent = "查询失败";
+          lookupSummary.textContent = error.message;
+        } finally {
+          setLoading(lookupButton, false, "查询中...", "获取聚合特征");
+        }
+      });
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        setLoading(true);
+        const submitButton = form.querySelector("button[type='submit']");
+        setLoading(submitButton, true, "分类中...", "开始分类");
         resultLabel.textContent = "分类中";
         resultSummary.textContent = "正在调用本地 Spark 模型。";
 
@@ -155,7 +258,7 @@
           negativeBar.style.width = "0%";
           positiveBar.style.width = "0%";
         } finally {
-          setLoading(false);
+          setLoading(submitButton, false, "分类中...", "开始分类");
         }
       });
     </script>
