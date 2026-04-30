@@ -14,6 +14,8 @@ except ModuleNotFoundError:
 BASE_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "model" / "GBT"
 MODEL_PATH = Path(os.getenv("GBT_MODEL_PATH", DEFAULT_MODEL_PATH)).expanduser()
+DEFAULT_DATA_CSV = BASE_DIR.parent.parent / "data" / "export" / "dwd_loan_combined.csv"
+DATA_CSV = Path(os.getenv("DATA_CSV", DEFAULT_DATA_CSV)).expanduser()
 
 PURPOSE_OPTIONS = [
     "debt_consolidation",
@@ -114,6 +116,45 @@ def vector_to_list(value):
     return [float(item) for item in value]
 
 
+def compute_aggregated_stats(purpose, addr_state, zip_code):
+    """Compute aggregated statistics from the dataset for given purpose, state, and zip_code."""
+    try:
+        from pyspark.sql import functions as F
+        
+        if not DATA_CSV.exists():
+            raise FileNotFoundError(f"Data file not found: {DATA_CSV}")
+        
+        spark = get_spark()
+        df = spark.read.option("header", "true").option("inferSchema", "true").csv(str(DATA_CSV))
+        
+        # For state-level aggregations
+        state_stats = df.filter(F.col("addr_state") == addr_state).agg(
+            F.avg(F.col("label")).alias("state_approval_rate"),
+            F.avg(F.col("dti")).alias("state_avg_dti")
+        ).collect()[0]
+        
+        # For purpose-level aggregations
+        purpose_stats = df.filter(F.col("purpose") == purpose).agg(
+            F.avg(F.col("label")).alias("purpose_approval_rate"),
+            F.avg(F.col("loan_amnt")).alias("purpose_avg_loan_amnt")
+        ).collect()[0]
+        
+        # For zip_code-level aggregations
+        zip_stats = df.filter(F.col("zip_code") == zip_code).agg(
+            F.avg(F.col("label")).alias("zip_approval_rate")
+        ).collect()[0]
+        
+        return {
+            "state_approval_rate": float(state_stats["state_approval_rate"]) if state_stats["state_approval_rate"] else 0.0,
+            "state_avg_dti": float(state_stats["state_avg_dti"]) if state_stats["state_avg_dti"] else 0.0,
+            "purpose_approval_rate": float(purpose_stats["purpose_approval_rate"]) if purpose_stats["purpose_approval_rate"] else 0.0,
+            "purpose_avg_loan_amnt": float(purpose_stats["purpose_avg_loan_amnt"]) if purpose_stats["purpose_avg_loan_amnt"] else 0.0,
+            "zip_approval_rate": float(zip_stats["zip_approval_rate"]) if zip_stats["zip_approval_rate"] else 0.0,
+        }
+    except Exception as exc:
+        raise Exception(f"Error computing aggregated stats: {str(exc)}")
+
+
 @app.get("/")
 def index():
     return render_template(
@@ -156,6 +197,23 @@ def predict():
             "probability": probability,
             "raw_prediction": raw_prediction,
         })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.post("/api/aggregated_stats")
+def aggregated_stats():
+    try:
+        payload = request.get_json(force=True) or {}
+        purpose = str(payload.get("purpose", "")).strip()
+        addr_state = str(payload.get("addr_state", "")).strip().upper()
+        zip_code = str(payload.get("zip_code", "")).strip()
+        
+        if not purpose or not addr_state or not zip_code:
+            raise ValueError("purpose, addr_state, and zip_code are required")
+        
+        stats = compute_aggregated_stats(purpose, addr_state, zip_code)
+        return jsonify(stats)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 400
 
