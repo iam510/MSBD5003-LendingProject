@@ -64,6 +64,7 @@
           <div class="actions">
             <button type="button" id="lookup-button" class="secondary">获取聚合特征</button>
             <button type="submit">开始分类</button>
+            <button type="button" id="reset-button" class="secondary">返回初始状态</button>
           </div>
         </form>
       </section>
@@ -124,6 +125,7 @@
       const lookupButton = document.querySelector("#lookup-button");
       const lookupLabel = document.querySelector("#lookup-label");
       const lookupSummary = document.querySelector("#lookup-summary");
+      const resetButton = document.querySelector("#reset-button");
       const stateApprovalRate = document.querySelector("#state-approval-rate");
       const stateAvgDti = document.querySelector("#state-avg-dti");
       const purposeApprovalRate = document.querySelector("#purpose-approval-rate");
@@ -145,6 +147,32 @@
 
       function resetRetrievedAggregateMetrics() {
         setRetrievedAggregateMetrics(false);
+      }
+
+      function resetLookupPanel() {
+        lookupLabel.textContent = "等待查询";
+        lookupSummary.textContent = "点击“获取聚合特征”后，会从 AnalyticDB 的 dws_geo_lookup、dws_purpose_lookup 和 dws_zip_lookup 读取聚合指标并自动回填表单。";
+        stateApprovalRate.textContent = "-";
+        stateAvgDti.textContent = "-";
+        purposeApprovalRate.textContent = "-";
+        purposeAvgLoanAmnt.textContent = "-";
+        zipApprovalRate.textContent = "-";
+      }
+
+      function resetPredictionPanel() {
+        resultLabel.textContent = "等待输入";
+        resultSummary.textContent = "提交表单后会显示模型分类结果。";
+        negativeProb.textContent = "-";
+        positiveProb.textContent = "-";
+        negativeBar.style.width = "0%";
+        positiveBar.style.width = "0%";
+      }
+
+      function resetAllState() {
+        form.reset();
+        setRetrievedAggregateMetrics(false);
+        resetLookupPanel();
+        resetPredictionPanel();
       }
 
       function setLoading(button, isLoading, loadingText, defaultText) {
@@ -214,6 +242,10 @@
         } finally {
           setLoading(lookupButton, false, "查询中...", "获取聚合特征");
         }
+      });
+
+      resetButton.addEventListener("click", () => {
+        resetAllState();
       });
 
       form.addEventListener("submit", async (event) => {
