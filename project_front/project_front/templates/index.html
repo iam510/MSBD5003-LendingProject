@@ -59,6 +59,7 @@
           <input type="hidden" name="purpose_approval_rate">
           <input type="hidden" name="purpose_avg_loan_amnt">
           <input type="hidden" name="zip_approval_rate">
+          <input type="hidden" name="retrieved_aggregate_metrics" value="false">
 
           <div class="actions">
             <button type="button" id="lookup-button" class="secondary">获取聚合特征</button>
@@ -134,6 +135,17 @@
       const positiveProb = document.querySelector("#positive-prob");
       const negativeBar = document.querySelector("#negative-bar");
       const positiveBar = document.querySelector("#positive-bar");
+      const retrievedAggregateMetricsField = form.elements.retrieved_aggregate_metrics;
+      let retrieved_aggregate_metrics = false;
+
+      function setRetrievedAggregateMetrics(value) {
+        retrieved_aggregate_metrics = value;
+        retrievedAggregateMetricsField.value = value ? "true" : "false";
+      }
+
+      function resetRetrievedAggregateMetrics() {
+        setRetrievedAggregateMetrics(false);
+      }
 
       function setLoading(button, isLoading, loadingText, defaultText) {
         button.disabled = isLoading;
@@ -172,6 +184,7 @@
         purposeAvgLoanAmnt.textContent = formatMetric(metrics.purpose_avg_loan_amnt);
         zipApprovalRate.textContent = formatMetric(metrics.zip_approval_rate, true);
 
+        setRetrievedAggregateMetrics(true);
         lookupLabel.textContent = "查询完成";
         lookupSummary.textContent = `已使用州 ${input.addr_state}、用途 ${input.purpose} 和邮编前缀 ${input.zip_code} 回填聚合特征。`;
       }
@@ -206,6 +219,13 @@
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         const submitButton = form.querySelector("button[type='submit']");
+
+        if (!retrieved_aggregate_metrics) {
+          resultLabel.textContent = "预测失败";
+          resultSummary.textContent = "请先点击“获取聚合特征”并成功获取结果，再进行预测。";
+          return;
+        }
+
         setLoading(submitButton, true, "分类中...", "开始分类");
         resultLabel.textContent = "分类中";
         resultSummary.textContent = "正在调用本地 Spark 模型。";
@@ -239,6 +259,7 @@
           negativeBar.style.width = "0%";
           positiveBar.style.width = "0%";
         } finally {
+          resetRetrievedAggregateMetrics();
           setLoading(submitButton, false, "分类中...", "开始分类");
         }
       });

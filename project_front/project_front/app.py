@@ -32,6 +32,7 @@ except ModuleNotFoundError:
 
 DEFAULT_MODEL_PATH = BASE_DIR.parent / "model" / "GBT"
 MODEL_PATH = Path(os.getenv("GBT_MODEL_PATH", DEFAULT_MODEL_PATH)).expanduser()
+retrieved_aggregate_metrics = False
 
 PURPOSE_OPTIONS = [
     "debt_consolidation",
@@ -155,6 +156,15 @@ def parse_payload(payload):
         raise ValueError("purpose 不能为空")
     if not row["addr_state"]:
         raise ValueError("addr_state 不能为空")
+
+    retrieved_aggregate_metrics = str(payload.get("retrieved_aggregate_metrics", "false")).strip().lower() in {
+        "true",
+        "1",
+        "yes",
+        "on",
+    }
+    if not retrieved_aggregate_metrics:
+        raise ValueError("请先获取聚合特征后再进行预测")
 
     for field in NUMERIC_FIELDS:
         value = payload.get(field)
