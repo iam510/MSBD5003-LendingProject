@@ -57,6 +57,7 @@ print(SEP, flush=True)
 # ══════════════════════════════════════════════════════════════
 print("\n[Step 1] Loading data ...", flush=True)
 t = time.time()
+print(f"  Reading CSV: {DATA_CSV} ...", flush=True)
 
 df = pd.read_csv(DATA_CSV,
                  dtype={"purpose": "category", "addr_state": "category",
