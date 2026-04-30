@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>贷款分类预测</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="heading">
+          <p class="eyebrow">Local Spark GBT Model</p>
+          <h1>贷款分类预测</h1>
+          <p class="model-path">{{ model_path }}</p>
+        </div>
+
+        <form id="predict-form" class="form-grid">
+          <label>
+            贷款用途
+            <select name="purpose" required>
+              {% for item in purpose_options %}
+              <option value="{{ item }}">{{ item }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            州
+            <select name="addr_state" required>
+              {% for item in state_options %}
+              <option value="{{ item }}">{{ item }}</option>
+              {% endfor %}
+            </select>
+          </label>
+
+          <label>
+            贷款金额
+            <input name="loan_amnt" type="number" min="0" step="100" value="10000" required>
+          </label>
+
+          <label>
+            工作年限
+            <input name="emp_length" type="number" min="0" max="10" step="1" value="5" required>
+          </label>
+
+          <label>
+            DTI
+            <input name="dti" type="number" min="0" step="0.01" value="18.5" required>
+          </label>
+
+          <!-- <label>
+            州通过率
+            <input name="state_approval_rate" type="number" min="0" max="1" step="0.0001" value="0.65" required>
+          </label>
+
+          <label>
+            州平均 DTI
+            <input name="state_avg_dti" type="number" min="0" step="0.01" value="18.0" required>
+          </label>
+
+          <label>
+            用途通过率
+            <input name="purpose_approval_rate" type="number" min="0" max="1" step="0.0001" value="0.62" required>
+          </label>
+
+          <label>
+            用途平均贷款额
+            <input name="purpose_avg_loan_amnt" type="number" min="0" step="100" value="12000" required>
+          </label>
+
+          <label>
+            邮编通过率
+            <input name="zip_approval_rate" type="number" min="0" max="1" step="0.0001" value="0.64" required>
+          </label> -->
+
+          <button type="submit">开始分类</button>
+          <button type="submit">View Aggregated Data</button>
+        </form>
+      </section>
+
+      <aside class="result-panel">
+        <div class="result-card">
+          <p class="eyebrow">Prediction</p>
+          <h2 id="result-label">等待输入</h2>
+          <p id="result-summary">提交表单后会显示模型分类结果。</p>
+          <div class="meter">
+            <span id="negative-bar"></span>
+            <span id="positive-bar"></span>
+          </div>
+          <dl>
+            <div>
+              <dt>负类概率</dt>
+              <dd id="negative-prob">-</dd>
+            </div>
+            <div>
+              <dt>正类概率</dt>
+              <dd id="positive-prob">-</dd>
+            </div>
+          </dl>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      const form = document.querySelector("#predict-form");
+      const resultLabel = document.querySelector("#result-label");
+      const resultSummary = document.querySelector("#result-summary");
+      const negativeProb = document.querySelector("#negative-prob");
+      const positiveProb = document.querySelector("#positive-prob");
+      const negativeBar = document.querySelector("#negative-bar");
+      const positiveBar = document.querySelector("#positive-bar");
+
+      function setLoading(isLoading) {
+        const button = form.querySelector("button");
+        button.disabled = isLoading;
+        button.textContent = isLoading ? "分类中..." : "开始分类";
+      }
+
+      function percent(value) {
+        return `${(value * 100).toFixed(2)}%`;
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        setLoading(true);
+        resultLabel.textContent = "分类中";
+        resultSummary.textContent = "正在调用本地 Spark 模型。";
+
+        const payload = Object.fromEntries(new FormData(form).entries());
+
+        try {
+          const response = await fetch("/api/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "预测失败");
+          }
+
+          const p0 = data.probability[0] || 0;
+          const p1 = data.probability[1] || 0;
+          resultLabel.textContent = data.label;
+          resultSummary.textContent = `模型输出分类：${data.prediction}`;
+          negativeProb.textContent = percent(p0);
+          positiveProb.textContent = percent(p1);
+          negativeBar.style.width = percent(p0);
+          positiveBar.style.width = percent(p1);
+        } catch (error) {
+          resultLabel.textContent = "预测失败";
+          resultSummary.textContent = error.message;
+          negativeProb.textContent = "-";
+          positiveProb.textContent = "-";
+          negativeBar.style.width = "0%";
+          positiveBar.style.width = "0%";
+        } finally {
+          setLoading(false);
+        }
+      });
+    </script>
+  </body>
+</html>

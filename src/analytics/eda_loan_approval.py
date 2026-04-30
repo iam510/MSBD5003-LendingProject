@@ -7,12 +7,21 @@
 只做查看和统计，不做任何数据修改。
 """
 
+# import sys, os, time
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+# from config.database_config import DB_CONFIG, SPARK_CONFIG
+
+# from pyspark.sql import SparkSession
+# from pyspark.sql import functions as F
+
 import sys, os, time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from config.database_config import DB_CONFIG, SPARK_CONFIG
 
+import pyspark
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.types import DoubleType, IntegerType
 
 JDBC_JAR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
@@ -20,12 +29,24 @@ JDBC_JAR = os.path.join(
     "mysql-connector-j-8.0.33.jar"
 )
 
+hadoop_home = os.environ.get("hadoop.home.dir") or os.environ.get("HADOOP_HOME")
 spark = (
     SparkSession.builder
     .appName("EDA_LoanApprovalPrediction")
-    .master(SPARK_CONFIG.get("master", "local[*]"))
+    # .master(SPARK_CONFIG.get("master", "local[*]"))
+    # .config("spark.driver.memory", SPARK_CONFIG.get("driver_memory", "4g"))
+    # .config("spark.jars", JDBC_JAR)
+    .master("local[1]")
     .config("spark.driver.memory", SPARK_CONFIG.get("driver_memory", "4g"))
     .config("spark.jars", JDBC_JAR)
+    .config("spark.local.ip", "127.0.0.1")
+    .config("spark.driver.host", "127.0.0.1")
+    .config("spark.driver.bindAddress", "127.0.0.1")
+    .config("spark.pyspark.python", sys.executable)
+    .config("spark.pyspark.driver.python", sys.executable)
+    .config("spark.python.worker.reuse", "false")
+    .config("spark.driver.extraJavaOptions", f"-Dhadoop.home.dir={hadoop_home}")
+    .config("spark.executor.extraJavaOptions", f"-Dhadoop.home.dir={hadoop_home}")
     .getOrCreate()
 )
 spark.sparkContext.setLogLevel("WARN")

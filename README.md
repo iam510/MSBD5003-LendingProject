@@ -60,6 +60,13 @@ python src/database/test_connection.py
 python src/spark_processing/data_cleaning.py
 ```
 
+### 5. 运行贷款审批模型
+```bash
+python src/ml/loan_approval_model.py
+```
+
+注意：`loan_approval_model.py` 是项目脚本，不是可通过 `pip install` 安装的包。若看到 `No matching distribution found for loan_approval_model.py`，说明命令写错了，应改为上面的 `python` 运行方式。
+
 ## 📊 数据说明
 
 ### 主要数据表

@@ -52,6 +52,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.ml import Pipeline
+from pyspark.ml.functions import vector_to_array
 from pyspark.ml.feature import StringIndexer, OneHotEncoder, VectorAssembler
 from pyspark.ml.classification import (
     LogisticRegression, RandomForestClassifier, GBTClassifier
@@ -176,7 +177,6 @@ for name, clf in model_defs.items():
     pipeline = Pipeline(stages=feat_stages + [clf])
     model    = pipeline.fit(train)
     preds    = model.transform(test)
-    preds.cache()
 
     auc   = auc_eval.evaluate(preds)
     aupr  = pr_eval.evaluate(preds)
@@ -190,7 +190,7 @@ for name, clf in model_defs.items():
     model.write().overwrite().save(model_path)
 
     results[name] = {"auc":auc,"aupr":aupr,"acc":acc,"f1":f1,
-                     "prec":prec,"rec":rec,"model":model,"preds":preds}
+                   "prec":prec,"rec":rec,"model":model}
     print(f"  {name:<22} {auc:>8.4f} {aupr:>8.4f} {acc:>9.4f} {f1:>8.4f} {prec:>10.4f} {rec:>8.4f} {elapsed:>5.0f}s",
           flush=True)
     print(f"  → Model saved: {model_path}", flush=True)
@@ -206,7 +206,7 @@ best      = results[best_name]
 print(f"\n[Step 5] Best Model: {best_name}  (AUC-ROC = {best['auc']:.4f})")
 print(SEP)
 
-best_preds = best["preds"]
+best_preds = best["model"].transform(test)
 
 # ── 5a. 混淆矩阵
 print("\n  Confusion Matrix (Predicted vs Actual):")
@@ -230,7 +230,7 @@ print(f"\n  Precision / Recall at Different Thresholds (label=1):")
 print(f"  {'Threshold':>9} {'TP':>9} {'FP':>9} {'FN':>9} {'Precision':>10} {'Recall':>9} {'F1':>8}")
 print("  " + "-"*67)
 for thresh in [0.3, 0.4, 0.5, 0.6, 0.7]:
-    t_preds = best_preds.withColumn("pred_t", (F.col("probability")[1]>=thresh).cast("int"))
+    t_preds = best_preds.withColumn("pred_t", (vector_to_array(F.col("probability")).getItem(1)>=thresh).cast("int"))
     _tp = t_preds.filter((F.col("pred_t")==1)&(F.col("label")==1)).count()
     _fp = t_preds.filter((F.col("pred_t")==1)&(F.col("label")==0)).count()
     _fn = t_preds.filter((F.col("pred_t")==0)&(F.col("label")==1)).count()
