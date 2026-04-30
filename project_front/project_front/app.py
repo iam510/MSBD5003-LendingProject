@@ -2,6 +2,7 @@ import os
 import sys
 from pathlib import Path
 
+#python web server flask
 from flask import Flask, jsonify, render_template, request
 
 BASE_DIR = Path(__file__).resolve().parent
